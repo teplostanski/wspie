@@ -1,22 +1,50 @@
 #!/usr/bin/env node
 
-'use strict';
+import EventEmitter from 'node:events';
+import fs from 'node:fs';
+import readline from 'node:readline';
+import tty from 'node:tty';
+import { program } from 'commander';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import { read } from 'read';
+import WebSocket, {
+  type ClientOptions,
+  type RawData,
+  WebSocketServer,
+} from 'ws';
 
-const EventEmitter = require('events');
-const fs = require('fs');
-const readline = require('readline');
-const tty = require('tty');
-const WebSocket = require('ws');
-const { HttpsProxyAgent } = require('https-proxy-agent');
-const { program } = require('commander');
-const { read } = require('read');
+interface CliOptions {
+  auth?: string;
+  ca?: string;
+  cert?: string;
+  host?: string;
+  key?: string;
+  maxRedirects: number;
+  color: boolean;
+  passphrase?: string | true;
+  proxy?: string;
+  slash?: boolean;
+  connect?: string;
+  header: string[];
+  listen?: string;
+  location?: boolean;
+  check: boolean;
+  origin?: string;
+  protocol?: string;
+  showPingPong?: boolean;
+  subprotocol: string[];
+  wait?: string;
+  execute: string[];
+}
 
-/**
- * InputReader - processes console input.
- *
- * @extends EventEmitter
- */
+/** Processes console input. */
 class Console extends EventEmitter {
+  readonly stdin: typeof process.stdin;
+  readonly stdout: typeof process.stdout;
+  readonly stderr: typeof process.stderr;
+  readonly readlineInterface: readline.Interface;
+  private readonly _resetInput: () => void;
+
   constructor() {
     super();
 
@@ -45,7 +73,7 @@ class Console extends EventEmitter {
       Green: '\u001b[32m',
       Yellow: '\u001b[33m',
       Blue: '\u001b[34m',
-      Default: '\u001b[39m'
+      Default: '\u001b[39m',
     };
   }
 
@@ -53,7 +81,7 @@ class Console extends EventEmitter {
     return {
       Incoming: '< ',
       Control: '',
-      Error: 'error: '
+      Error: 'error: ',
     };
   }
 
@@ -61,19 +89,19 @@ class Console extends EventEmitter {
     this.readlineInterface.prompt(true);
   }
 
-  print(type, msg, color) {
+  print(type: string, msg: string | RawData, color: string) {
     if (tty.isatty(1)) {
       this.clear();
 
       if (programOptions.execute.length) color = type = '';
       else if (!programOptions.color) color = '';
 
-      this.stdout.write(color + type + msg + Console.Colors.Default + '\n');
+      this.stdout.write(`${color}${type}${msg}${Console.Colors.Default}\n`);
       this.prompt();
     } else if (type === Console.Types.Incoming) {
-      this.stdout.write(msg + '\n');
+      this.stdout.write(`${msg}\n`);
     } else if (type === Console.Types.Error) {
-      this.stderr.write(type + msg + '\n');
+      this.stderr.write(`${type}${msg}\n`);
     } else {
       // is a control message and we're not in a tty... drop it.
     }
@@ -94,7 +122,7 @@ class Console extends EventEmitter {
   }
 }
 
-function collect(val, memo) {
+function collect(val: string, memo: string[]) {
   memo.push(val);
   return memo;
 }
@@ -104,7 +132,9 @@ function noop() {}
 /**
  * The actual application
  */
-const version = require('../package.json').version;
+const { version } = JSON.parse(
+  fs.readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+) as { version: string };
 
 program
   .version(version)
@@ -115,68 +145,68 @@ program
   .option('--host <host>', 'optional host')
   .option(
     '--key <key>',
-    "specify a Client SSL Certificate's key (--connect only)"
+    "specify a Client SSL Certificate's key (--connect only)",
   )
   .option(
     '--max-redirects [num]',
     'maximum number of redirects allowed',
     parseInt,
-    10
+    10,
   )
   .option('--no-color', 'run without color')
   .option(
     '--passphrase [passphrase]',
     "specify a Client SSL Certificate Key's passphrase (--connect only). " +
-      "If you don't provide a value, it will be prompted for"
+      "If you don't provide a value, it will be prompted for",
   )
   .option(
     '--proxy <[protocol://]host[:port]>',
-    'connect via a proxy. Proxy must support CONNECT method'
+    'connect via a proxy. Proxy must support CONNECT method',
   )
   .option(
     '--slash',
     'enable slash commands for control frames (/ping [data], /pong [data], ' +
-      '/close [code [, reason]]) (--connect only)'
+      '/close [code [, reason]]) (--connect only)',
   )
   .option('-c, --connect <url>', 'connect to a WebSocket server')
   .option(
     '-H, --header <header:value>',
     'set an HTTP header. Repeat to set multiple (--connect only)',
     collect,
-    []
+    [],
   )
   .option('-l, --listen <port>', 'listen on port')
   .option('-L, --location', 'follow redirects')
   .option(
     '-n, --no-check',
-    'do not check for unauthorized certificates (--connect only)'
+    'do not check for unauthorized certificates (--connect only)',
   )
   .option('-o, --origin <origin>', 'optional origin')
   .option('-p, --protocol <version>', 'optional protocol version')
   .option(
     '-P, --show-ping-pong',
-    'print a notification when a ping or pong is received (--connect only)'
+    'print a notification when a ping or pong is received (--connect only)',
   )
   .option(
     '-s, --subprotocol <protocol>',
     'optional subprotocol. Repeat to specify more than one',
     collect,
-    []
+    [],
   )
   .option(
     '-w, --wait <seconds>',
-    'wait given seconds after executing command (-1 to hold open)'
+    'wait given seconds after executing command (-1 to hold open)',
   )
   .option(
     '-x, --execute <command>',
     'execute command after connecting. Repeat to execute more than one ' +
       '(--connect only)',
     collect,
-    []
+    [],
   )
   .parse(process.argv);
 
-const programOptions = program.opts();
+const programOptions = program.opts<CliOptions>();
 
 if (programOptions.listen && programOptions.connect) {
   console.error('\u001b[33merror: Use either --listen or --connect\u001b[39m');
@@ -187,22 +217,25 @@ if (programOptions.listen) {
   const wsConsole = new Console();
   wsConsole.pause();
 
-  let ws = null;
-  const wss = new WebSocket.Server({ port: programOptions.listen }, () => {
-    wsConsole.print(
-      Console.Types.Control,
-      `Listening on port ${programOptions.listen} (press CTRL+C to quit)`,
-      Console.Colors.Green
-    );
-    wsConsole.clear();
-  });
+  let ws: WebSocket | null = null;
+  const wss = new WebSocketServer(
+    { port: Number(programOptions.listen) },
+    () => {
+      wsConsole.print(
+        Console.Types.Control,
+        `Listening on port ${programOptions.listen} (press CTRL+C to quit)`,
+        Console.Colors.Green,
+      );
+      wsConsole.clear();
+    },
+  );
 
   wsConsole.on('close', () => {
     if (ws) ws.close();
     process.exit(0);
   });
 
-  wsConsole.on('line', (data) => {
+  wsConsole.on('line', (data: string) => {
     if (ws) {
       ws.send(data);
       wsConsole.prompt();
@@ -218,14 +251,14 @@ if (programOptions.listen) {
     wsConsole.print(
       Console.Types.Control,
       'Client connected',
-      Console.Colors.Green
+      Console.Colors.Green,
     );
 
     ws.on('close', (code, reason) => {
       wsConsole.print(
         Console.Types.Control,
         `Disconnected (code: ${code}, reason: "${reason}")`,
-        Console.Colors.Green
+        Console.Colors.Green,
       );
       wsConsole.clear();
       wsConsole.pause();
@@ -246,21 +279,24 @@ if (programOptions.listen) {
     process.exit(-1);
   });
 } else if (programOptions.connect) {
-  const options = {};
+  const options: ClientOptions = {};
+  const connectAddress = programOptions.connect;
   const cont = () => {
     const wsConsole = new Console();
 
-    const headers = programOptions.header.reduce((acc, cur) => {
-      const i = cur.indexOf(':');
-      const key = cur.slice(0, i);
-      const value = cur.slice(i + 1);
-      acc[key] = value;
-      return acc;
-    }, {});
+    const headers = programOptions.header.reduce<Record<string, string>>(
+      (acc, cur) => {
+        const i = cur.indexOf(':');
+        const key = cur.slice(0, i);
+        const value = cur.slice(i + 1);
+        acc[key] = value;
+        return acc;
+      },
+      {},
+    );
 
     if (programOptions.auth) {
-      headers.Authorization =
-        'Basic ' + Buffer.from(programOptions.auth).toString('base64');
+      headers.Authorization = `Basic ${Buffer.from(programOptions.auth).toString('base64')}`;
     }
     if (programOptions.host) headers.Host = programOptions.host;
     if (programOptions.protocol)
@@ -279,7 +315,7 @@ if (programOptions.listen) {
     options.maxRedirects = programOptions.maxRedirects;
     options.headers = headers;
 
-    let connectUrl = programOptions.connect;
+    let connectUrl = connectAddress;
     if (!/^[a-z][a-z0-9.+-]*:/i.test(connectUrl)) {
       connectUrl = `ws://${connectUrl}`;
     }
@@ -298,7 +334,7 @@ if (programOptions.listen) {
           () => {
             ws.close();
           },
-          programOptions.wait ? programOptions.wait * 1000 : 2000
+          programOptions.wait ? Number(programOptions.wait) * 1000 : 2000,
         );
 
         return;
@@ -307,10 +343,10 @@ if (programOptions.listen) {
       wsConsole.print(
         Console.Types.Control,
         'Connected (press CTRL+C to quit)',
-        Console.Colors.Green
+        Console.Colors.Green,
       );
 
-      wsConsole.on('line', (data) => {
+      wsConsole.on('line', (data: string) => {
         if (programOptions.slash && data[0] === '/') {
           const toks = data.split(/\s+/);
           switch (toks[0].substr(1)) {
@@ -332,7 +368,7 @@ if (programOptions.listen) {
               let closeStatusCode = 1000;
               let closeReason = '';
               if (toks.length >= 2) {
-                closeStatusCode = parseInt(toks[1]);
+                closeStatusCode = parseInt(toks[1], 10);
               }
               if (toks.length >= 3) {
                 closeReason = toks.slice(2).join(' ');
@@ -348,7 +384,7 @@ if (programOptions.listen) {
               wsConsole.print(
                 Console.Types.Error,
                 'Unrecognized slash command.',
-                Console.Colors.Yellow
+                Console.Colors.Yellow,
               );
           }
         } else {
@@ -363,7 +399,7 @@ if (programOptions.listen) {
         wsConsole.print(
           Console.Types.Control,
           `Disconnected (code: ${code}, reason: "${reason}")`,
-          Console.Colors.Green
+          Console.Colors.Green,
         );
       }
       wsConsole.clear();
@@ -384,7 +420,7 @@ if (programOptions.listen) {
         wsConsole.print(
           Console.Types.Incoming,
           `Received ping (data: "${data}")`,
-          Console.Colors.Blue
+          Console.Colors.Blue,
         );
       }
     });
@@ -394,7 +430,7 @@ if (programOptions.listen) {
         wsConsole.print(
           Console.Types.Incoming,
           `Received pong (data: "${data}")`,
-          Console.Colors.Blue
+          Console.Colors.Blue,
         );
       }
     });
@@ -409,7 +445,7 @@ if (programOptions.listen) {
     read({
       prompt: 'Passphrase: ',
       silent: true,
-      replace: '*'
+      replace: '*',
     }).then((passphrase) => {
       options.passphrase = passphrase;
       cont();
