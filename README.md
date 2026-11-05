@@ -1,19 +1,41 @@
-# wscat
+# WSpie
 
-WebSocket cat.
+🥧 WSpie CLI: a modern, user-friendly WebSocket client for the terminal.
+Interactive messaging, colors, authentication, proxy support, ping/pong & more.
+
+> WSpie is a fork of [wscat](https://github.com/websockets/wscat), built to preserve
+> its command-line interface and familiar workflows. Use `ws` or `wspie` in place
+> of `wscat`. Maintaining backward compatibility with wscat's CLI is a core
+> commitment as WSpie adds new features and evolves.
+
+## Why WSpie?
+
+WSpie was created to continue developing the tool as wscat's releases became
+infrequent, with two priorities:
+
+- **Regular security maintenance.** Keep dependencies up to date, review
+  vulnerability reports, and ship security fixes regularly. Security updates
+  are an ongoing part of maintaining the project.
+- **A simpler, more capable CLI.** Improve the interface and everyday usability,
+  and add useful features while preserving existing command-line options and
+  workflows.
 
 ## Installation
 
 This module needs to be installed globally so use the `-g` flag when installing:
 
+Requires Node.js `^22.22.2 || ^24.15.0 || >=26.0.0`.
+
 ```
-npm install -g wscat
+pnpm add -g wspie
 ```
 
 ## Usage
 
+Run `ws` or its alias `wspie`. Both commands support the same options.
+
 ```
-Usage: wscat [options] (--listen <port> | --connect <url>)
+Usage: ws [options] (--listen <port> | --connect <url>)
 
 Options:
   -V, --version                       output the version number
@@ -50,7 +72,7 @@ Options:
 ## Example
 
 ```
-$ wscat -c wss://websocket-echo.com
+$ ws -c wss://websocket-echo.com
 Connected (press CTRL+C to quit)
 > hi there
 < hi there
@@ -60,4 +82,12 @@ Connected (press CTRL+C to quit)
 
 ## License
 
-[MIT](LICENSE)
+[MIT](./LICENSE) License © 2026-present [Teplostanski Igor](https://github.com/teplostanski)
+
+Based on [wscat](https://github.com/websockets/wscat), originally developed by
+Einar Otto Stangvik, Arnout Kazemier, Luigi Pinca, and contributors.
+The original MIT license and copyright notices are preserved in
+[LICENSE-WSCAT](./LICENSE-WSCAT).
+
+Inspired by HTTPie's approach to command-line tools. WSpie is an independent
+project and is not affiliated with or endorsed by [HTTPie](https://httpie.io).
