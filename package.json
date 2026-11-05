@@ -1,6 +1,6 @@
 {
   "name": "wspie",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "🥧 WSpie CLI: a modern, user-friendly WebSocket client for the terminal. Interactive messaging, colors, authentication, proxy support, ping/pong & more.",
   "type": "module",
   "scripts": {
