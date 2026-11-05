@@ -1,32 +1,56 @@
 {
-  "name": "wscat",
-  "version": "6.1.0",
-  "description": "WebSocket cat",
-  "main": "index.js",
+  "name": "wspie",
+  "version": "1.0.0",
+  "description": "🥧 WSpie CLI: a modern, user-friendly WebSocket client for the terminal. Interactive messaging, colors, authentication, proxy support, ping/pong & more.",
+  "type": "module",
   "scripts": {
-    "test": "echo \"No test specified\""
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "prepack": "pnpm typecheck && pnpm build",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "prepare": "husky"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/websockets/wscat.git"
+    "url": "git+https://github.com/teplostanski/wspie.git"
   },
   "keywords": [
+    "wspie",
     "wscat",
     "websocket",
     "cat"
   ],
-  "author": "Arnout Kazemier, Einar Otto Stangvik",
+  "author": "Teplostanski Igor <hi@teplostanski.me> (https://teplostanski.me)",
   "license": "MIT",
+  "packageManager": "pnpm@12.16.1",
   "engines": {
-    "node": ">=18"
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
   "dependencies": {
-    "commander": "^12.1.0",
-    "https-proxy-agent": "^7.0.5",
-    "read": "^4.0.0",
-    "ws": "^8.0.0"
+    "commander": "^15.0.0",
+    "https-proxy-agent": "^9.1.0",
+    "read": "^6.0.0",
+    "ws": "^8.22.1"
   },
   "bin": {
-    "wscat": "bin/wscat"
-  }
+    "ws": "dist/cli.js",
+    "wspie": "dist/cli.js"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.5",
+    "@types/node": "^26.6.6",
+    "@types/ws": "^8.18.2",
+    "husky": "^9.1.7",
+    "tsdown": "^0.23.5",
+    "typescript": "^7.0.2"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "LICENSE-WSCAT"
+  ]
 }
